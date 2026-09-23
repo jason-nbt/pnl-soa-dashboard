@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PNL SOA Dashboard</title>
+    <!-- 引入 SheetJS 用于读取 Excel 文件 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 40px 20px;
+            color: #333;
+        }
+        .dashboard-container {
+            max-width: 1150px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 30px 40px;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #0056b3;
+            padding-bottom: 12px;
+            margin-bottom: 25px;
+        }
+        .header h1 {
+            margin: 0;
+            color: #0056b3;
+            font-size: 24px;
+            font-weight: 700;
+        }
+        .update-time {
+            font-size: 13px;
+            color: #6c757d;
+            background-color: #e9ecef;
+            padding: 6px 12px;
+            border-radius: 4px;
+        }
+        .summary-cards {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .card {
+            flex: 1;
+            background-color: #f8f9fa;
+            padding: 18px 20px;
+            border-radius: 4px;
+        }
+        .card-green { border-left: 4px solid #5cb85c; }
+        .card-red { border-left: 4px solid #d9534f; }
+        .card h3 {
+            margin: 0 0 8px 0;
+            font-size: 13px;
+            color: #495057;
+            font-weight: 600;
+        }
+        .card p {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 700;
+            color: #212529;
+        }
+        .main-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13.5px;
+        }
+        .main-table th, .main-table td {
+            padding: 14px 10px;
+            text-align: right;
+            border-bottom: 1px solid #eaedf0;
+            color: #495057;
+        }
+        .main-table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            border-bottom: 2px solid #eaedf0;
+            color: #495057;
+        }
+        .main-table th:first-child, .main-table td:first-child {
+            text-align: left;
+            padding-left: 5px;
+            color: #212529;
+        }
+        .main-table th:nth-child(5), .main-table td:nth-child(5),
+        .main-table th:nth-child(6), .main-table td:nth-child(6) {
+            background-color: #f9fbfc; 
+        }
+        .negative { color: #d9534f !important; font-weight: 700; }
+        .positive { color: #5cb85c !important; font-weight: 700; }
+        .zero-val { color: #999; }
+        tfoot tr {
+            background-color: #f1f3f5;
+            font-weight: bold;
+        }
+        tfoot td {
+            color: #212529;
+            border-top: 2px solid #d3d9df;
+            border-bottom: none;
+        }
+        .toggle-btn {
+            background-color: #fff;
+            border: 1px solid #0056b3;
+            color: #0056b3;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .toggle-btn:hover {
+            background-color: #0056b3;
+            color: #fff;
+        }
+        .details-row {
+            display: none;
+            background-color: #f4f6f8;
+        }
+        .details-row td {
+            padding: 20px;
+            border-bottom: 2px solid #0056b3 !important;
+        }
+        .inner-aging-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Times New Roman', Times, serif;
+            background-color: #fff;
+        }
+        .inner-aging-table th, .inner-aging-table td {
+            border: 2px solid #000;
+            padding: 8px 12px;
+            text-align: right;
+            color: #000;
+            font-size: 14px;
+        }
+        .inner-aging-table th { font-weight: normal; }
+        #loading-state {
+            text-align: center;
+            padding: 50px 20px;
+            color: #6c757d;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="dashboard-container">
+    <div class="header">
+        <h1>PNL SOA Dashboard</h1>
+        <div class="update-time" id="update-time-label">Syncing data...</div>
+    </div>
+
+    <div class="summary-cards">
+        <div class="card card-green">
+            <h3>Supplier Name</h3>
+            <p>P&L BORNEO SUPPLIES SDN. BHD.</p>
+        </div>
+        <div class="card card-red">
+            <h3>Statement Status</h3>
+            <p id="statement-status">Fetching...</p>
+        </div>
+    </div>
+
+    <div id="loading-state">
+        正在读取云端 Excel 数据，请稍候...<br><br>
+        <small style="color:#d9534f;" id="error-msg"></small>
+    </div>
+
+    <table class="main-table" id="dashboard-table" style="display: none;">
+        <thead>
+            <tr>
+                <th>Company Name</th>
+                <th>Debit (Owed)</th>
+                <th>Credit (Paid)</th>
+                <th>Balance (MYR)</th>
+                <th>Current (MYR)</th>
+                <th>1 Month (MYR)</th>
+                <th style="text-align: center;">Aging Details</th>
+            </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+        <tfoot id="table-footer"></tfoot>
+    </table>
+</div>
+
+<script>
+    function formatMoney(amount) {
+        if (isNaN(amount)) return "0.00";
+        return parseFloat(amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
+    function toggleAging(rowId) {
+        var row = document.getElementById(rowId);
+        row.style.display = (row.style.display === "none" || row.style.display === "") ? "table-row" : "none";
+    }
+
+    function getValClass(val) { return val === 0 ? "zero-val" : ""; }
+    function getBalanceClass(val) {
+        if (val < 0) return "negative";
+        if (val > 0) return "positive";
+        return "zero-val";
+    }
+
+    // 自动加载当前目录下的 data.xls
+    async function loadExcelData() {
+        try {
+            const response = await fetch('data.xls');
+            if (!response.ok) {
+                throw new Error("找不到 data.xls 文件。请确保已将 Excel 文件重命名为 data.xls 并上传到仓库。");
+            }
+            
+            const arrayBuffer = await response.arrayBuffer();
+            const workbook = XLSX.read(arrayBuffer, {type: 'array'});
+            
+            let parsedData = [];
+            let totalDebit = 0, totalCredit = 0, totalBalance = 0;
+            let totalCurrent = 0, totalM1 = 0;
+            let extractedDate = ""; 
+
+            workbook.SheetNames.forEach((sheetName, index) => {
+                const sheet = workbook.Sheets[sheetName];
+                const rows = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: ""});
+                
+                if (index === 0) {
+                    for (let r = 0; r < 20; r++) {
+                        let rowStr = String(rows[r][0]).trim();
+                        if (rowStr.includes("Statement of Account as at")) {
+                            extractedDate = rowStr.replace("Statement of Account as at", "").trim();
+                            break;
+                        }
+                    }
+                }
+
+                let company = "Unknown Company";
+                let debit = 0, credit = 0, balance = 0;
+                let aging = { c:0, m1:0, m2:0, m3:0, m4:0, m5:0, m6:0, m7:0, m8:0, m9:0, m10:0, m11:0 };
+
+                for (let r = 0; r < 20; r++) {
+                    let rowStr = rows[r].map(v => String(v).trim()).join("");
+                    if (rowStr.includes("A/C Code")) {
+                        company = rows[r][0] || rows[r-1][0];
+                        break;
+                    }
+                }
+
+                let txStart = -1;
+                for (let r = 10; r < 30; r++) {
+                    if (String(rows[r][0]).trim() === "Date") {
+                        txStart = r + 1;
+                        break;
+                    }
+                }
+
+                if (txStart !== -1) {
+                    for (let r = txStart; r < rows.length; r++) {
+                        const row = rows[r];
+                        let col0 = String(row[0]).trim();
+                        if (col0.includes("Ringgit") || col0.includes("Open Credit") || col0.includes("We shall")) break;
+                        
+                        if (row[0] || row[1] || row[2]) {
+                            let d = parseFloat(row[5]) || 0;
+                            let c = parseFloat(row[6]) || 0;
+                            let b = parseFloat(row[7]);
+                            debit += d;
+                            credit += c;
+                            if (!isNaN(b)) balance = b;
+                        }
+                    }
+                }
+
+                for (let r = 20; r < rows.length; r++) {
+                    let rStrings = rows[r].map(v => String(v).trim());
+                    if (rStrings.includes("Current")) {
+                        if (rows[r+1]) {
+                            aging.c = parseFloat(rows[r+1][rStrings.indexOf("Current")]) || 0;
+                            aging.m1 = parseFloat(rows[r+1][rStrings.indexOf("1 Month")]) || 0;
+                            aging.m2 = parseFloat(rows[r+1][rStrings.indexOf("2 Months")]) || 0;
+                            aging.m3 = parseFloat(rows[r+1][rStrings.indexOf("3 Months")]) || 0;
+                            aging.m4 = parseFloat(rows[r+1][rStrings.indexOf("4 Months")]) || 0;
+                            aging.m5 = parseFloat(rows[r+1][rStrings.indexOf("5 Months")]) || 0;
+                        }
+                    }
+                    if (rStrings.includes("6 Months")) {
+                        if (rows[r+1]) {
+                            aging.m6 = parseFloat(rows[r+1][rStrings.indexOf("6 Months")]) || 0;
+                            aging.m7 = parseFloat(rows[r+1][rStrings.indexOf("7 Months")]) || 0;
+                            aging.m8 = parseFloat(rows[r+1][rStrings.indexOf("8 Months")]) || 0;
+                            aging.m9 = parseFloat(rows[r+1][rStrings.indexOf("9 Months")]) || 0;
+                            aging.m10 = parseFloat(rows[r+1][rStrings.indexOf("10 Months")]) || 0;
+                            aging.m11 = parseFloat(rows[r+1][rStrings.indexOf("11 Months ++")]) || 0;
+                        }
+                    }
+                }
+
+                parsedData.push({ company, debit, credit, balance, aging });
+                totalDebit += debit; totalCredit += credit; totalBalance += balance;
+                totalCurrent += aging.c; totalM1 += aging.m1;
+            });
+
+            const displayDate = extractedDate || new Date().toLocaleDateString('en-GB');
+            document.getElementById('update-time-label').textContent = "Last Updated: " + displayDate;
+            document.getElementById('statement-status').textContent = "Statement as at " + displayDate;
+
+            const tbody = document.getElementById('table-body');
+            const tfoot = document.getElementById('table-footer');
+            
+            parsedData.forEach((item, index) => {
+                let rowId = 'aging-detail-' + index;
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${item.company}</td>
+                        <td class="${getValClass(item.debit)}">${formatMoney(item.debit)}</td>
+                        <td class="${getValClass(item.credit)}">${formatMoney(item.credit)}</td>
+                        <td class="${getBalanceClass(item.balance)}">${formatMoney(item.balance)}</td>
+                        <td class="${getValClass(item.aging.c)}">${formatMoney(item.aging.c)}</td>
+                        <td class="${getValClass(item.aging.m1)}">${formatMoney(item.aging.m1)}</td>
+                        <td style="text-align: center;"><button class="toggle-btn" onclick="toggleAging('${rowId}')">View Aging ▼</button></td>
+                    </tr>
+                    <tr class="details-row" id="${rowId}">
+                        <td colspan="7">
+                            <table class="inner-aging-table">
+                                <tr><th>Current</th><th>1 Month</th><th>2 Months</th><th>3 Months</th><th>4 Months</th><th>5 Months</th></tr>
+                                <tr>
+                                    <td>${formatMoney(item.aging.c)}</td><td>${formatMoney(item.aging.m1)}</td><td>${formatMoney(item.aging.m2)}</td>
+                                    <td>${formatMoney(item.aging.m3)}</td><td>${formatMoney(item.aging.m4)}</td><td>${formatMoney(item.aging.m5)}</td>
+                                </tr>
+                                <tr><th>6 Months</th><th>7 Months</th><th>8 Months</th><th>9 Months</th><th>10 Months</th><th>11 Months ++</th></tr>
+                                <tr>
+                                    <td>${formatMoney(item.aging.m6)}</td><td>${formatMoney(item.aging.m7)}</td><td>${formatMoney(item.aging.m8)}</td>
+                                    <td>${formatMoney(item.aging.m9)}</td><td>${formatMoney(item.aging.m10)}</td><td>${formatMoney(item.aging.m11)}</td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tfoot.innerHTML = `
+                <tr>
+                    <td>TOTAL</td><td>${formatMoney(totalDebit)}</td><td>${formatMoney(totalCredit)}</td>
+                    <td class="${getBalanceClass(totalBalance)}">${formatMoney(totalBalance)}</td>
+                    <td>${formatMoney(totalCurrent)}</td><td>${formatMoney(totalM1)}</td><td></td>
+                </tr>
+            `;
+
+            document.getElementById('loading-state').style.display = 'none';
+            document.getElementById('dashboard-table').style.display = 'table';
+            
+        } catch (error) {
+            document.getElementById('error-msg').textContent = error.message;
+        }
+    }
+
+    // 页面加载完毕后自动运行
+    window.onload = loadExcelData;
+</script>
+
+</body>
+</html>
