@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PNL SOA Dashboard</title>
-    <!-- 引入 SheetJS 用于读取 Excel 文件 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         body {
@@ -171,7 +170,7 @@
     </div>
 
     <div id="loading-state">
-        正在读取云端 Excel 数据，请稍候...<br><br>
+        Loading...Please Wait...<br><br>
         <small style="color:#d9534f;" id="error-msg"></small>
     </div>
 
@@ -210,12 +209,11 @@
         return "zero-val";
     }
 
-    // 自动加载当前目录下的 data.xls
     async function loadExcelData() {
         try {
             const response = await fetch('data.xls');
             if (!response.ok) {
-                throw new Error("找不到 data.xls 文件。请确保已将 Excel 文件重命名为 data.xls 并上传到仓库。");
+                throw new Error("can't fine data.xls file, please upload to the right place.");
             }
             
             const arrayBuffer = await response.arrayBuffer();
@@ -360,7 +358,6 @@
         }
     }
 
-    // 页面加载完毕后自动运行
     window.onload = loadExcelData;
 </script>
 
