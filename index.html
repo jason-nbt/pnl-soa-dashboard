@@ -260,6 +260,8 @@
                         aging: item.aging
                     };
                 });
+				
+				parsedData.sort((a, b) => a.company.localeCompare(b.company));
 
                 renderDashboard({ parsedData, extractedDate, totalDebit, totalCredit, totalBalance, totalCurrent, totalM1 });
             } else {
