@@ -72,9 +72,9 @@
         <div class="upload-container">
             <span class="update-time" id="update-time-label">Connecting to Supabase...</span>
             
-            <!-- 管理员专属按钮，添加了 admin-only 类名用于控制 -->
-            <button class="reset-btn admin-only" onclick="clearCloudData()">Reset Data</button>
-            <label class="file-upload-btn admin-only">
+            <!-- 默认直接加上 style="display: none;"，让普通员工绝对看不到 -->
+            <button class="reset-btn admin-only" onclick="clearCloudData()" style="display: none;">Reset Data</button>
+            <label class="file-upload-btn admin-only" style="display: none;">
                 Upload Reports
                 <input type="file" id="excel-upload" accept=".xls,.xlsx" multiple onchange="handleFileUpload(event)">
             </label>
@@ -123,7 +123,7 @@
     // =========================================================================
     const SUPABASE_URL = 'https://yvtujoueyotncbvdlgyf.supabase.co'; 
     const SUPABASE_ANON_KEY = 'sb_publishable_98O37WT0nSZVw2I9128JOg___CX38Dn'; 
-    const ADMIN_EMAIL = 'nbtadmin@gmail.com'; // 请确保这里是你的管理员邮箱
+    const ADMIN_EMAIL = 'nbtadmin@gmail.com'; 
 
     const { createClient } = supabase;
     const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -147,14 +147,17 @@
         document.getElementById('global-login-screen').style.display = 'none';
         document.getElementById('main-app').style.display = 'block';
 
-        // 核心：如果是普通员工邮箱，隐藏管理按钮
+        // 核心改动：每次登录时，强制重新判断
         const adminButtons = document.querySelectorAll('.admin-only');
-        if (userEmail !== ADMIN_EMAIL) {
-            adminButtons.forEach(btn => btn.style.display = 'none');
-        } else {
+        if (userEmail === ADMIN_EMAIL) {
+            // 如果是管理员，显示按钮
             adminButtons.forEach(btn => {
-                // 将 label 设为 inline-block，将 button 设为 inline-block 恢复显示
-                btn.style.display = btn.tagName === 'LABEL' ? 'inline-block' : 'inline-block';
+                btn.style.display = 'inline-block';
+            });
+        } else {
+            // 如果是其他人，强制隐藏按钮（解决不刷新直接换号登录的残留问题）
+            adminButtons.forEach(btn => {
+                btn.style.display = 'none';
             });
         }
 
