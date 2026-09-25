@@ -54,28 +54,32 @@
 </head>
 <body>
 
-<!-- 全屏登录界面 (默认显示) -->
+<!-- 全局登录界面 -->
 <div id="global-login-screen" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh;">
     <div style="background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; width: 320px;">
         <h2 style="margin-top: 0; color: #0056b3; margin-bottom: 10px;">PNL SOA System</h2>
-        <p style="color: #6c757d; font-size: 14px; margin-bottom: 25px;">Please login to view and modify data.</p>
-        <input type="email" id="login-email" placeholder="Admin Email" style="width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
+        <p style="color: #6c757d; font-size: 14px; margin-bottom: 25px;">Please login to view data.</p>
+        <input type="email" id="login-email" placeholder="Company Email" style="width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
         <input type="password" id="login-password" placeholder="Password" style="width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
         <button onclick="loginUser()" style="width: 100%; padding: 10px; background-color: #0056b3; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 15px;">Login</button>
     </div>
 </div>
 
-<!-- 内部仪表盘主应用 (默认隐藏) -->
+<!-- 主数据面板 (默认隐藏) -->
 <div class="dashboard-container" id="main-app" style="display: none;">
     <div class="header">
         <h1>PNL SOA Dashboard</h1>
         <div class="upload-container">
             <span class="update-time" id="update-time-label">Connecting to Supabase...</span>
-            <button class="reset-btn" onclick="clearCloudData()">Reset Data</button>
-            <label class="file-upload-btn">
+            
+            <!-- 管理员专属按钮，添加了 admin-only 类名用于控制 -->
+            <button class="reset-btn admin-only" onclick="clearCloudData()">Reset Data</button>
+            <label class="file-upload-btn admin-only">
                 Upload Reports
                 <input type="file" id="excel-upload" accept=".xls,.xlsx" multiple onchange="handleFileUpload(event)">
             </label>
+            
+            <!-- 所有人可见的登出按钮 -->
             <button class="reset-btn" onclick="logoutUser()" style="border-color: #6c757d; color: #6c757d; margin-left: 10px;">Logout</button>
         </div>
     </div>
@@ -104,6 +108,7 @@
                 <th>Credit (Paid)</th>
                 <th>Balance (MYR)</th>
                 <th>Current (MYR)</th>
+                <th>1 Month (MYR)</th>
                 <th style="text-align: center;">Aging Details</th>
             </tr>
         </thead>
@@ -118,29 +123,42 @@
     // =========================================================================
     const SUPABASE_URL = 'https://yvtujoueyotncbvdlgyf.supabase.co'; 
     const SUPABASE_ANON_KEY = 'sb_publishable_98O37WT0nSZVw2I9128JOg___CX38Dn'; 
+    const ADMIN_EMAIL = 'nbtadmin@gmail.com'; // 请确保这里是你的管理员邮箱
 
     const { createClient } = supabase;
     const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     // =========================================================================
-    // AUTHENTICATION LOGIC (NEW)
+    // 登录与权限控制逻辑
     // =========================================================================
-    
     window.onload = async function() {
-        // 页面一加载，检查浏览器是否已经存有登录状态
+        // 页面加载时检查是否已经登录过
         const { data: { session } } = await supabaseClient.auth.getSession();
-        
         if (session) {
-            // 如果已经登录，直接进入系统
-            showDashboard();
+            showDashboard(session.user.email);
+        } else {
+            // 未登录则显示登录界面，隐藏主面板
+            document.getElementById('global-login-screen').style.display = 'flex';
+            document.getElementById('main-app').style.display = 'none';
         }
-        // 如果未登录，默认保持显示 global-login-screen，不执行任何数据拉取
     };
 
-    function showDashboard() {
+    function showDashboard(userEmail) {
         document.getElementById('global-login-screen').style.display = 'none';
         document.getElementById('main-app').style.display = 'block';
-        fetchDashboardData(); // 只有验证通过后，才开始拉取云端数据
+
+        // 核心：如果是普通员工邮箱，隐藏管理按钮
+        const adminButtons = document.querySelectorAll('.admin-only');
+        if (userEmail !== ADMIN_EMAIL) {
+            adminButtons.forEach(btn => btn.style.display = 'none');
+        } else {
+            adminButtons.forEach(btn => {
+                // 将 label 设为 inline-block，将 button 设为 inline-block 恢复显示
+                btn.style.display = btn.tagName === 'LABEL' ? 'inline-block' : 'inline-block';
+            });
+        }
+
+        fetchDashboardData();
     }
 
     async function loginUser() {
@@ -165,29 +183,26 @@
         loginBtn.disabled = false;
 
         if (error) {
-            alert("Access Denied: " + error.message);
+            alert("Login Failed: " + error.message);
         } else {
-            // 登录成功，清空密码框并进入系统
             document.getElementById('login-password').value = '';
-            showDashboard();
+            showDashboard(data.user.email);
         }
     }
 
     async function logoutUser() {
         await supabaseClient.auth.signOut();
-        // 登出后，隐藏系统面板，恢复登录框，并彻底清空数据残留
         document.getElementById('main-app').style.display = 'none';
         document.getElementById('global-login-screen').style.display = 'flex';
-        document.getElementById('table-body').innerHTML = ''; 
+        // 登出后清理敏感数据展示
+        document.getElementById('table-body').innerHTML = '';
         document.getElementById('table-footer').innerHTML = '';
         document.getElementById('dashboard-table').style.display = 'none';
-        document.getElementById('empty-state').style.display = 'block';
     }
 
     // =========================================================================
-    // ORIGINAL DASHBOARD LOGIC
+    // 数据处理与显示逻辑
     // =========================================================================
-
     function formatMoney(amount) {
         if (isNaN(amount)) return "0.00";
         return parseFloat(amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -223,6 +238,7 @@
             if (error) throw error;
 
             if (data && data.length > 0) {
+                // 将数据库拉取的数据重新组合为原本的格式计算总额
                 let totalDebit = 0, totalCredit = 0, totalBalance = 0, totalCurrent = 0, totalM1 = 0;
                 let extractedDate = data[0].extracted_date || "";
 
@@ -246,7 +262,7 @@
             } else {
                 document.getElementById('dashboard-table').style.display = 'none';
                 document.getElementById('empty-state').style.display = 'block';
-                document.getElementById('empty-state').innerHTML = "No data available in the cloud. Please click 'Upload Reports' to sync your Excel files.";
+                document.getElementById('empty-state').innerHTML = "No data available in the cloud. Please contact the administrator to upload reports.";
                 document.getElementById('update-time-label').textContent = "Supabase Sync: No Data";
                 document.getElementById('statement-status').textContent = "Pending Upload";
             }
@@ -278,6 +294,7 @@
                     <td class="${getValClass(item.credit)}">${formatMoney(item.credit)}</td>
                     <td class="${getBalanceClass(item.balance)}">${formatMoney(item.balance)}</td>
                     <td class="${getValClass(item.aging.c)}">${formatMoney(item.aging.c)}</td>
+                    <td class="${getValClass(item.aging.m1)}">${formatMoney(item.aging.m1)}</td>
                     <td style="text-align: center;"><button class="toggle-btn" onclick="toggleAging('${rowId}')">View Aging ▼</button></td>
                 </tr>
                 <tr class="details-row" id="${rowId}">
@@ -303,7 +320,7 @@
             <tr>
                 <td>TOTAL</td><td>${formatMoney(totalDebit)}</td><td>${formatMoney(totalCredit)}</td>
                 <td class="${getBalanceClass(totalBalance)}">${formatMoney(totalBalance)}</td>
-                <td>${formatMoney(totalCurrent)}</td><td></td>
+                <td>${formatMoney(totalCurrent)}</td><td>${formatMoney(totalM1)}</td><td></td>
             </tr>
         `;
 
@@ -321,6 +338,7 @@
         document.getElementById('empty-state').innerHTML = "Clearing cloud data, please wait...";
 
         try {
+            // 在 Supabase 中删除所有不为空的行即可清空整个表
             const { error } = await supabaseClient
                 .from('pnl_records')
                 .delete()
@@ -347,6 +365,7 @@
         document.getElementById('empty-state').innerHTML = "Merging files and syncing to Supabase, please wait...";
 
         try {
+            // 1. Fetch existing data from Supabase
             let existingData = [];
             let latestDate = "";
             try {
@@ -359,6 +378,7 @@
 
             let newCompanies = [];
 
+            // 2. Parser for Company Name and Values
             for (let i = 0; i < files.length; i++) {
                 const dataBuffer = await readFileAsArrayBuffer(files[i]);
                 const workbook = XLSX.read(dataBuffer, {type: 'array'});
@@ -369,6 +389,7 @@
                     
                     if (rows.length === 0) return;
 
+                    // A. Find Date
                     if (!latestDate) {
                         for (let r = 0; r < Math.min(30, rows.length); r++) {
                             let rowStr = rows[r].join(" ");
@@ -382,6 +403,7 @@
                         }
                     }
 
+                    // B. Find Company Name strictly from the A/C Code Row
                     let company = "Unknown Company";
                     for (let r = 0; r < Math.min(40, rows.length); r++) {
                         let rowStr = rows[r].join(" ").toLowerCase();
@@ -402,6 +424,7 @@
                         }
                     }
 
+                    // C. Find Transaction Table
                     let txStart = -1, colDebit = -1, colCredit = -1, colBalance = -1;
                     for (let r = 0; r < Math.min(60, rows.length); r++) {
                         let rStrings = rows[r].map(v => String(v).trim().toLowerCase());
@@ -446,6 +469,7 @@
                         }
                     }
 
+                    // D. Find Aging Table
                     let aging = { c:0, m1:0, m2:0, m3:0, m4:0, m5:0, m6:0, m7:0, m8:0, m9:0, m10:0, m11:0 };
                     for (let r = Math.max(0, txStart); r < rows.length; r++) {
                         let rStrings = rows[r].map(v => String(v).trim().toLowerCase());
@@ -494,10 +518,12 @@
                 return;
             }
 
+            // 3. Smart Merge for Supabase payload
             let companyMap = new Map();
-            existingData.forEach(c => companyMap.set(c.company, c)); 
-            newCompanies.forEach(c => companyMap.set(c.company, c)); 
+            existingData.forEach(c => companyMap.set(c.company, c)); // Load existing
+            newCompanies.forEach(c => companyMap.set(c.company, c)); // Override with new
 
+            // 4. Prepare Upsert Data for Supabase
             const upsertPayload = Array.from(companyMap.values()).map(item => ({
                 company: item.company,
                 debit: item.debit,
@@ -507,6 +533,7 @@
                 extracted_date: latestDate
             }));
 
+            // 5. Upsert to Supabase
             const { error: upsertError } = await supabaseClient
                 .from('pnl_records')
                 .upsert(upsertPayload, { onConflict: 'company' });
@@ -515,7 +542,7 @@
 
             setTimeout(() => {
                 alert("Report successfully merged and saved to Supabase!");
-                fetchDashboardData(); 
+                fetchDashboardData(); // Re-fetch from DB to guarantee sync
             }, 1000);
             
         } catch (error) {
