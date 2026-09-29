@@ -127,6 +127,10 @@
 
     const { createClient } = supabase;
     const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+			auth: {
+		            persistSession: false 
+		        }
+		    });
 
     // =========================================================================
     // 登录与权限控制逻辑
@@ -245,20 +249,26 @@
                 let totalDebit = 0, totalCredit = 0, totalBalance = 0, totalCurrent = 0, totalM1 = 0;
                 let extractedDate = data[0].extracted_date || "";
 
-                const parsedData = data.map(item => {
+                const parsedData = [];
+                data.forEach(item => {
+                    let currentBalance = parseFloat(item.balance) || 0;
+                    
+                    // 如果 balance 為 0，則直接跳過這筆資料，不顯示也不計入總計
+                    if (currentBalance === 0) return;
+
                     totalDebit += parseFloat(item.debit) || 0;
                     totalCredit += parseFloat(item.credit) || 0;
-                    totalBalance += parseFloat(item.balance) || 0;
+                    totalBalance += currentBalance;
                     totalCurrent += parseFloat(item.aging.c) || 0;
                     totalM1 += parseFloat(item.aging.m1) || 0;
                     
-                    return {
+                    parsedData.push({
                         company: item.company,
                         debit: parseFloat(item.debit),
                         credit: parseFloat(item.credit),
-                        balance: parseFloat(item.balance),
+                        balance: currentBalance,
                         aging: item.aging
-                    };
+                    });
                 });
 				
 				parsedData.sort((a, b) => a.company.localeCompare(b.company));
