@@ -125,12 +125,12 @@
     const SUPABASE_ANON_KEY = 'sb_publishable_98O37WT0nSZVw2I9128JOg___CX38Dn'; 
     const ADMIN_EMAIL = 'admin@nbt.com'; 
 
-    const { createClient } = supabase;
-    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-			auth: {
-		            persistSession: false 
-		        }
-		    });
+   const { createClient } = supabase;
+    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+            persistSession: false 
+        }
+    });
 
     // =========================================================================
     // 登录与权限控制逻辑
