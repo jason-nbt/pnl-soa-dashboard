@@ -244,32 +244,46 @@
 
             if (error) throw error;
 
-            if (data && data.length > 0) {
-                // 将数据库拉取的数据重新组合为原本的格式计算总额
-                let totalDebit = 0, totalCredit = 0, totalBalance = 0, totalCurrent = 0, totalM1 = 0;
-                let extractedDate = data[0].extracted_date || "";
+          if (data && data.length > 0) {
+            // 将数据库拉取的数据重新组合为原本的格式计算总额
+            let totalDebit = 0, totalCredit = 0, totalBalance = 0, totalCurrent = 0, totalM1 = 0;
+            
+            // 💡 修复1：遍历所有数据，找出“最新”的上传日期，而不是随便拿第一条
+            let extractedDate = "";
+            let maxTime = 0;
+            data.forEach(item => {
+                if (item.extracted_date) {
+                    // 把 " at " 替换成空格，方便电脑计算时间大小
+                    let parseableStr = item.extracted_date.replace(" at ", " ");
+                    let t = new Date(parseableStr).getTime();
+                    if (t > maxTime) {
+                        maxTime = t;
+                        extractedDate = item.extracted_date;
+                    }
+                }
+            });
 
-                const parsedData = [];
-                data.forEach(item => {
-                    let currentBalance = parseFloat(item.balance) || 0;
-                    
-                    // 如果 balance 為 0，則直接跳過這筆資料，不顯示也不計入總計
-                    if (currentBalance === 0) return;
+            const parsedData = [];
+            data.forEach(item => {
+                let currentBalance = parseFloat(item.balance) || 0;
+                
+                // 💡 修复2：解决浮点数问题，只要数值小于 0.01（即 0.00）就跳过
+                if (Math.abs(currentBalance) < 0.01) return;
 
-                    totalDebit += parseFloat(item.debit) || 0;
-                    totalCredit += parseFloat(item.credit) || 0;
-                    totalBalance += currentBalance;
-                    totalCurrent += parseFloat(item.aging.c) || 0;
-                    totalM1 += parseFloat(item.aging.m1) || 0;
-                    
-                    parsedData.push({
-                        company: item.company,
-                        debit: parseFloat(item.debit),
-                        credit: parseFloat(item.credit),
-                        balance: currentBalance,
-                        aging: item.aging
-                    });
+                totalDebit += parseFloat(item.debit) || 0;
+                totalCredit += parseFloat(item.credit) || 0;
+                totalBalance += currentBalance;
+                totalCurrent += parseFloat(item.aging.c) || 0;
+                totalM1 += parseFloat(item.aging.m1) || 0;
+                
+                parsedData.push({
+                    company: item.company,
+                    debit: parseFloat(item.debit),
+                    credit: parseFloat(item.credit),
+                    balance: currentBalance,
+                    aging: item.aging
                 });
+            });
 				
 				parsedData.sort((a, b) => a.company.localeCompare(b.company));
 
